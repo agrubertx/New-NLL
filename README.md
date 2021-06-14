@@ -32,4 +32,3 @@ Please cite [our paper](https://arxiv.org/pdf/2104.14072.pdf) if you use this co
   journal={arXiv preprint arXiv:2104.14072},
   year={2021}
 }
-# New-NLL
