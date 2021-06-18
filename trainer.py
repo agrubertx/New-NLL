@@ -7,9 +7,9 @@ import scipy.optimize as syopt  # for polynomial least-squares
 from sklearn.neighbors import NearestNeighbors  # for local least-squares
 
 from functions import test_func
-import utils
-from utils import jacobian, save_checkpoints, plot_quiver
 from networks import RevNet, RegNet
+from utils import (jacobian, save_checkpoints, plot_quiver, plot_regression,
+    normalize_data, unnormalize_data, fitFunc, LfitFunc)
 
 
 def nll_loss(jac, df):
@@ -78,23 +78,9 @@ class Trainer():
             # Generate training/validation data (testing == validation here)
             self.preprocess_data(args.train_num, args.valid_num)
         else:
-            # Generate the training/validation/testing data
-            self.xTrain = self.sample_domain(args.train_num)
-            self.xTrain.requires_grad = True
-            fTrain, dfTrain = test_func(self.xTrain, args.function)
-            self.fTrain = fTrain.to(args.device)
-            self.dfTrain = dfTrain.to(args.device)
-
-            self.xValid = self.sample_domain(args.valid_num)
-            fValid, dfValid = test_func(self.xValid, args.function)
-            self.fValid = fValid.to(args.device)
-            self.dfValid = dfValid.to(args.device)
-
-            test_num = self.args.valid_num   ## or whatever
-            self.xTest = self.sample_domain(test_num)
-            fTest, dfTest = test_func(self.xTest, self.args.function)
-            self.fTest = fTest.to(self.device)
-            self.dfTest = dfTest.to(self.device)
+            test_num = args.valid_num  # or whatever
+            self.get_data_from_function(args.function, args.train_num,
+                                        args.valid_num, test_num)
 
 
     def sample_domain(self, num_samples):
@@ -105,6 +91,44 @@ class Trainer():
         data = lb + (ub - lb) * lhs(self.dim, num_samples)
         dataTensor = torch.from_numpy(data).float().to(self.device)
         return dataTensor
+
+
+    def get_data_from_function(self, f, train_num, valid_num, test_num):
+        # Generate the training/validation/testing data
+        self.xTrain = self.sample_domain(train_num)
+        fTrain, dfTrain = test_func(self.xTrain, f)
+        self.xValid = self.sample_domain(valid_num)
+        fValid, dfValid = test_func(self.xValid, f)
+        self.xTest = self.sample_domain(test_num)
+        fTest, dfTest = test_func(self.xTest, f)
+
+        # Add a zero column in case of odd dimension
+        if self.dim % 2 == 1:
+            fakeCol = torch.zeros_like(self.xTrain[:,[0]])
+            self.xTrain = torch.cat( (self.xTrain, fakeCol),
+                                         1).to(self.device)
+            self.dfTrain = torch.cat( (dfTrain, fakeCol),
+                                          1).to(self.device)
+            fakeCol = torch.zeros_like(self.xValid[:,[0]])
+            self.xValid = torch.cat( (self.xValid, fakeCol),
+                                         1).to(self.device)
+            self.dfValid = torch.cat( (dfValid, fakeCol),
+                                          1).to(self.device)
+            fakeCol = torch.zeros_like(self.xTest[:,[0]])
+            self.xTest = torch.cat( (self.xTest, fakeCol),
+                                         1).to(self.device)
+            self.dfTest = torch.cat( (dfTest, fakeCol),
+                                          1).to(self.device)
+        else:
+            self.dfTrain = dfTrain.to(self.device)
+            self.dfValid = dfValid.to(self.device)
+            self.dfTest = dfTest.to(self.device)
+
+        self.xTrain.requires_grad = True
+
+        self.fTrain = fTrain.to(self.device)
+        self.fValid = fValid.to(self.device)
+        self.fTest = fTest.to(self.device)
 
 
     def preprocess_data(self, train_num, valid_num):
@@ -118,9 +142,9 @@ class Trainer():
         train_dfs = train_data[:, 1+self.dim:]
 
         train_Ninputs, train_inputs_mm, train_inputs_min = (
-                utils.normalize_data(train_inputs) )
+                normalize_data(train_inputs) )
         train_Nfs, train_fs_mm, train_fs_min = (
-                utils.normalize_data(train_fs) )
+                normalize_data(train_fs) )
         train_Ndfs = train_inputs_mm / train_fs_mm * train_dfs
 
         # normalize validation data based on training data
@@ -250,18 +274,18 @@ class Trainer():
 
         zTrain = self.RevNet(self.xTrain)[0].to(self.device).detach()
 
-        params = syopt.curve_fit(utils.fitFunc,
+        params = syopt.curve_fit(fitFunc,
                     zTrain.numpy()[:,0], self.fTrain.numpy())[0]
 
         zTest = self.RevNet(self.xTest)[0].to(self.device)
 
-        fTilde = utils.fitFunc(zTest.detach().numpy()[:,0], *params)
+        fTilde = fitFunc(zTest.detach().numpy()[:,0], *params)
         fTilde = torch.from_numpy(fTilde).float().to(self.device)
 
         if self.args.use_data == True:
-            self.fTest = utils.unnormalize_data(self.fTest,
+            self.fTest = unnormalize_data(self.fTest,
                             self.f_mm_orig, self.f_min_orig)
-            fTilde = utils.unnormalize_data(fTilde,
+            fTilde = unnormalize_data(fTilde,
                             self.f_mm_orig, self.f_min_orig)
 
         MSE = torch.nn.MSELoss()(self.fTest, fTilde)
@@ -278,30 +302,7 @@ class Trainer():
         print(f'The relative L-1 Error is {relL1.detach().numpy():.5f}%')
         print(f'The relative L-2 Error is {relL2.detach().numpy():.5f}%')
 
-        index = np.argsort(zTest.detach().cpu().numpy(), axis=0)
-
-        fig2 = plt.figure(1, figsize=(8, 8))
-        ax2 = fig2.add_subplot(1, 1, 1)
-        ax2.xaxis.label.set_size(24)
-        ax2.yaxis.label.set_size(24)
-        ax2.tick_params(axis='x', labelsize=18)
-        ax2.tick_params(axis='y', labelsize=18)
-        ax2.cla()
-        ax2.plot(zTest.detach().numpy()[index,0][::10],
-                 self.fTest[index][::10],'*', color='#fc8d62',
-                 label='Exact', markersize=15)
-        ax2.plot(zTest.detach().numpy()[index,0][::10],
-                 fTilde.detach().numpy()[index][::10],'.', color='#66c2a5',
-                 label='Predicted', markersize=15)
-        ax2.set_xlabel('Value of $z_1$', labelpad=15)
-        ax2.set_ylabel('Function Value', labelpad=15)
-
-        handles, labels = plt.gca().get_legend_handles_labels()
-        by_label = dict(zip(labels, handles))
-        ax2.legend(by_label.values(), by_label.keys(), prop={'size': 28})
-        # plt.savefig('plot1d.pdf', format='pdf')
-        plt.draw()
-        plt.show()
+        plot_regression(zTest, self.fTest, fTilde)
 
 
     def train_test_local_polynomial_reg(self):
@@ -323,16 +324,16 @@ class Trainer():
 
         fTilde = np.zeros_like(self.fTest.detach().numpy())
         for i in range(len(self.xTest)):
-            params = syopt.curve_fit(utils.LfitFunc, zt1.detach(
+            params = syopt.curve_fit(LfitFunc, zt1.detach(
                         ).numpy()[idx[i]], self.fTrain.numpy()[idx[i]])[0]
-            fTilde[i] = utils.LfitFunc(z1[i].detach().numpy(), *params)
+            fTilde[i] = LfitFunc(z1[i].detach().numpy(), *params)
 
         fTilde = torch.from_numpy(fTilde).float().to(self.device)
 
         if self.args.use_data == True:
-            self.fTest = utils.unnormalize_data(self.fTest,
+            self.fTest = unnormalize_data(self.fTest,
                             self.f_mm_orig, self.f_min_orig)
-            fTilde = utils.unnormalize_data(fTilde,
+            fTilde = unnormalize_data(fTilde,
                             self.f_mm_orig, self.f_min_orig)
 
         MSE = torch.nn.MSELoss()(self.fTest, fTilde)
@@ -349,30 +350,7 @@ class Trainer():
         print(f'The relative L-1 Error is {relL1.detach().numpy():.5f}%')
         print(f'The relative L-2 Error is {relL2.detach().numpy():.5f}%')
 
-        index = np.argsort(zTest.detach().cpu().numpy(), axis=0)
-
-        fig2 = plt.figure(1, figsize=(8, 8))
-        ax2 = fig2.add_subplot(1, 1, 1)
-        ax2.xaxis.label.set_size(24)
-        ax2.yaxis.label.set_size(24)
-        ax2.tick_params(axis='x', labelsize=18)
-        ax2.tick_params(axis='y', labelsize=18)
-        ax2.cla()
-        ax2.plot(zTest.detach().numpy()[index,0][::10],
-                 self.fTest[index][::10],'*', color='#fc8d62',
-                 label='Exact', markersize=15)
-        ax2.plot(zTest.detach().numpy()[index,0][::10],
-                 fTilde.detach().numpy()[index][::10],'.', color='#66c2a5',
-                 label='Predicted', markersize=15)
-        ax2.set_xlabel('Value of $z_1$', labelpad=15)
-        ax2.set_ylabel('Function Value', labelpad=15)
-
-        handles, labels = plt.gca().get_legend_handles_labels()
-        by_label = dict(zip(labels, handles))
-        ax2.legend(by_label.values(), by_label.keys(), prop={'size': 28})
-        # plt.savefig('plot1d.pdf', format='pdf')
-        plt.draw()
-        plt.show()
+        plot_regression(zTest, self.fTest, fTilde)
 
 
     def train_reg(self):
@@ -445,9 +423,9 @@ class Trainer():
         fTilde = self.RegNet(zTest).squeeze(1)
 
         if self.args.use_data == True:
-            self.fTest = utils.unnormalize_data(self.fTest,
+            self.fTest = unnormalize_data(self.fTest,
                             self.f_mm_orig, self.f_min_orig)
-            fTilde = utils.unnormalize_data(fTilde,
+            fTilde = unnormalize_data(fTilde,
                             self.f_mm_orig, self.f_min_orig)
 
         MSE = torch.nn.MSELoss()(self.fTest, fTilde)
@@ -464,27 +442,4 @@ class Trainer():
         print(f'The relative L-1 Error is {relL1.detach().numpy():.5f}%')
         print(f'The relative L-2 Error is {relL2.detach().numpy():.5f}%')
 
-        index = np.argsort(zTest.detach().cpu().numpy(), axis=0)
-
-        fig2 = plt.figure(1, figsize=(8, 8))
-        ax2 = fig2.add_subplot(1, 1, 1)
-        ax2.xaxis.label.set_size(24)
-        ax2.yaxis.label.set_size(24)
-        ax2.tick_params(axis='x', labelsize=18)
-        ax2.tick_params(axis='y', labelsize=18)
-        ax2.cla()
-        ax2.plot(zTest.detach().numpy()[index,0][::10],
-                 self.fTest[index][::10],'*', color='#fc8d62',
-                 label='Exact', markersize=15)
-        ax2.plot(zTest.detach().numpy()[index,0][::10],
-                 fTilde.detach().numpy()[index][::10],'.', color='#66c2a5',
-                 label='Predicted', markersize=15)
-        ax2.set_xlabel('Value of $z_1$', labelpad=15)
-        ax2.set_ylabel('Function Value', labelpad=15)
-
-        handles, labels = plt.gca().get_legend_handles_labels()
-        by_label = dict(zip(labels, handles))
-        ax2.legend(by_label.values(), by_label.keys(), prop={'size': 28})
-        # plt.savefig('plot1d.pdf', format='pdf')
-        plt.draw()
-        plt.show()
+        plot_regression(zTest, self.fTest, fTilde)

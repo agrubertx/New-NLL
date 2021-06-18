@@ -17,7 +17,7 @@ trainer = Trainer(args)
 
 trainer.train_nll()
 trainer.test_nll()
-
+#
 trainer.train_reg()
 trainer.test_reg()
 
