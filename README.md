@@ -6,7 +6,9 @@ A. Gruber, M. Gunzburger, L. Ju, Y. Teng, and Z. Wang.  [Nonlinear Level Set Lea
 
 which learns an intrinsically one-dimensional representation of a (user or data defined) scalar-valued function of many variables.
 
-The main file is "run_algorithm.py", and "options.py" contains the hyperparameters that will be passed when the program is instantiated.  These should be modified according to your particular needs.
+The main file is "run_algorithm.py", and "options.py" contains the hyperparameters that will be passed when the program is instantiated.  These should be modified according to your particular needs.  
+
+Alternatively, simply execute "run_algorithm.py" to generate an example of the method.
 
 ## Installation
 The code was written and tested using Python 3.8 on Mac OSX 11.2.3.  The required dependencies are

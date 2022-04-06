@@ -1,6 +1,6 @@
 import torch
 from options import Options
-from trainer2 import Trainer
+from trainer import Trainer
 
 '''
 This script will run the NLL algorithm with the options specified in

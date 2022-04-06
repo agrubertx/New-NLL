@@ -28,7 +28,7 @@ def jacobian(output, input):
     n, dim = input.shape
     w = torch.ones_like(input[:,[0]])
     jac = torch.empty(dim,n,dim).to(output.device)
-    print(jac.shape)
+    # print(jac.shape)
     for i in range(dim):
         output_i = output[:,[i]]
         jac[i] = torch.autograd.grad(output_i, input, w, create_graph=True)[0]
