@@ -39,7 +39,6 @@ def jacobian(output, input):
 def grad(outputs, inputs):
     """
     compute the derivative of outputs associated with inputs
-
     Params
     ======
     outputs: (N, 1) tensor
@@ -65,9 +64,8 @@ def unnormalize_data(normalized_data, mm, min):
 
 
 def plot_quiver(x, df, dh=None):
-
-    x_numpy = x.detach().cpu().numpy()
-    df_numpy = df.detach().cpu().numpy()
+    x_numpy = x.detach().numpy()
+    df_numpy = df.detach().numpy()
     # dg_numpy = dg.detach().cpu().numpy()
     if dh is not None:
         dh_numpy = dh.detach().cpu().numpy()
@@ -86,6 +84,33 @@ def plot_quiver(x, df, dh=None):
 
     plt.axis('equal')
     return fig
+
+
+def plot_regression(z, f, f_bar):
+    index = np.argsort(z.detach().cpu().numpy(), axis=0)
+    znp = z.detach().numpy()
+    fbnp = f_bar.detach().numpy()
+
+    fig2 = plt.figure(1, figsize=(8, 8))
+    ax2 = fig2.add_subplot(1, 1, 1)
+    ax2.xaxis.label.set_size(24)
+    ax2.yaxis.label.set_size(24)
+    ax2.tick_params(axis='x', labelsize=18)
+    ax2.tick_params(axis='y', labelsize=18)
+    ax2.set_xlabel('Value of $z_1$', labelpad=15)
+    ax2.set_ylabel('Function Value', labelpad=15)
+
+    ax2.plot(znp[index,0][::10], f[index][::10],'*', color='#fc8d62',
+             label='Exact', markersize=15)
+    ax2.plot(znp[index,0][::10], fbnp[index][::10],'.', color='#66c2a5',
+             label='Predicted', markersize=15)
+
+    handles, labels = plt.gca().get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    ax2.legend(by_label.values(), by_label.keys(), prop={'size': 28})
+    # plt.savefig('plot1d.pdf', format='pdf', bbox_inches='tight')
+    plt.tight_layout()
+    plt.show()
 
 
 # For global polynomial fit.
