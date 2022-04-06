@@ -1,4 +1,3 @@
-from math import ceil
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -16,10 +15,9 @@ class ForBlock(nn.Module):
 
         self.layers = nn.ModuleList()
         for i in range(2):
-            # self.layers.append(nn.Linear(ceil(self.dim/2), self.dim))
-            self.layers.append(nn.Linear(ceil(self.dim/2), 2*ceil(self.dim/2)))
+            self.layers.append(nn.Linear(self.dim//2, self.dim))
 
-        # self.reset_parameters()   # optional parameter reset
+        # self.reset_parameters()
 
     def reset_parameters(self):
         for name, param in self.layers.named_parameters():
@@ -29,7 +27,7 @@ class ForBlock(nn.Module):
                 nn.init.xavier_uniform_(param)
 
     def forward(self, x):
-        u_old, v_old = torch.split(x, [ceil(self.dim/2), ceil(self.dim/2)], 1)
+        u_old, v_old = torch.split(x, [self.dim//2, self.dim//2], 1)
 
         u_mid = torch.tanh(self.layers[0](v_old)).unsqueeze(2)
         u_sig = torch.matmul(self.layers[0].weight.t(), u_mid).squeeze(2)
@@ -53,10 +51,9 @@ class InvBlock(nn.Module):
 
         self.layers = nn.ModuleList()
         for i in range(2):
-            # self.layers.append(nn.Linear(ceil(self.dim/2), self.dim))
-            self.layers.append(nn.Linear(ceil(self.dim/2), 2*ceil(self.dim/2)))
+            self.layers.append(nn.Linear(self.dim//2, self.dim))
 
-        # self.reset_parameters()   # optional parameter reset
+        # self.reset_parameters()
 
     def reset_parameters(self):
         for name, param in self.layers.named_parameters():
@@ -66,7 +63,7 @@ class InvBlock(nn.Module):
                 nn.init.xavier_uniform_(param)
 
     def forward(self, x):
-        u_old, v_old = torch.split(x, [ceil(self.dim/2), ceil(self.dim/2)], 1)
+        u_old, v_old = torch.split(x, [self.dim//2, self.dim//2], 1)
 
         v_mid = torch.tanh(self.layers[1](u_old)).unsqueeze(2)
         v_sig = torch.matmul(self.layers[1].weight.t(), v_mid).squeeze(2)
@@ -119,7 +116,7 @@ class RevNet(nn.Module):
         jac = jacobian(x, z)
         # jac_norm = torch.sqrt(torch.sum(jac*jac,1))
         # jac_norm = torch.unsqueeze(jac_norm, 1)
-        # jac = jac / jac_norm   # Normalization to compare with original NLL
+        # jac = jac / jac_norm
         return x, jac
 
 
@@ -137,7 +134,7 @@ class RegNet(nn.Module):
             self.reg_net.append(nn.Linear(hidden_neurons, hidden_neurons))
         self.reg_net.append(nn.Linear(hidden_neurons, 1))
 
-        # self.reset_parameters()   # optional parameter reset
+    #     self.reset_parameters()
 
     def reset_parameters(self):
         for name, param in self.reg_net.named_parameters():

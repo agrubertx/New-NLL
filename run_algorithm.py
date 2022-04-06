@@ -16,10 +16,10 @@ if args.device != 'cpu':
 trainer = Trainer(args)
 
 trainer.train_nll()
-trainer.test_new()
+trainer.test_nll()
 
-# trainer.train_reg()
-# trainer.test_reg()
+trainer.train_reg()
+trainer.test_reg()
 
 # trainer.train_test_local_polynomial_reg()
 # trainer.train_test_global_polynomial_reg()
