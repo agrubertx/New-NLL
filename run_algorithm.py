@@ -1,6 +1,6 @@
 import torch
 from options import Options
-from trainer import Trainer
+from trainer2 import Trainer
 
 '''
 This script will run the NLL algorithm with the options specified in
@@ -16,10 +16,10 @@ if args.device != 'cpu':
 trainer = Trainer(args)
 
 trainer.train_nll()
-trainer.test_nll()
-#
-trainer.train_reg()
-trainer.test_reg()
+trainer.test_new()
+
+# trainer.train_reg()
+# trainer.test_reg()
 
 # trainer.train_test_local_polynomial_reg()
 # trainer.train_test_global_polynomial_reg()

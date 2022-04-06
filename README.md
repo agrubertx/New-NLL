@@ -27,8 +27,10 @@ Take a look at the function preprocess_data implemented in "trainer.py", as well
 Please cite [our paper](https://arxiv.org/pdf/2104.14072.pdf) if you use this code in your own work:
 ```
 @article{gruber2021nonlinear,
-  title={Nonlinear Level Set Learning for Function Approximation on Sparse Data with Applications to Parametric Differential Equations},
+  title={Nonlinear Level Set Learning for Function Approximation on Sparse Data with Applications to Parametric Differential Equations.},
   author={Gruber, Anthony and Gunzburger, Max and Ju, Lili and Teng, Yuankai and Wang, Zhu},
-  journal={arXiv preprint arXiv:2104.14072},
+  journal={Numerical Mathematics: Theory, Methods \& Applications},
+  volume={14},
+  number={4},
   year={2021}
 }

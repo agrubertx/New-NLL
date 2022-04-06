@@ -14,11 +14,11 @@ class Options(object):
                             help='Seed for pseudo-deterministic behavior')
         parser.add_argument('--use_data',
                             action='store_true',
-                            default=True,
+                            default=False,
                             help='Bool to indicate if dataset should be used')
         parser.add_argument('--function',
                             type=int,
-                            default=12,
+                            default=9,
                             help='Case in functions.py')
         parser.add_argument('--data_path',
                             type=str,
@@ -26,7 +26,7 @@ class Options(object):
                             help='Filepath to data (if --usedata = True)')
         parser.add_argument('--dim',
                             type=int,
-                            default=4,
+                            default=2,
                             help='Dimension of input space')
         parser.add_argument('--num_blocks',
                             type=int,
@@ -54,11 +54,11 @@ class Options(object):
                             help='Weight in regularizer term')
         parser.add_argument('--lr',
                             type=float,
-                            default=0.005,
+                            default=0.0005,
                             help='Initial learning rate for ADAM optimizer')
         parser.add_argument('--epochs_nll',
                             type=int,
-                            default=2000,
+                            default=10000,
                             help='Number of epochs to train NLL')
         parser.add_argument('--epochs_reg',
                             type=int,
@@ -66,7 +66,7 @@ class Options(object):
                             help='Number of epochs to train Regression Net')
         parser.add_argument('--train_num',
                             type=str,
-                            default=200,
+                            default=500, #was 1000#
                             help='Number of Training data')
         parser.add_argument('--valid_num',
                             type=str,

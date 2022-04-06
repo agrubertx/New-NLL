@@ -27,8 +27,8 @@ def save_checkpoints(state, is_best=None,
 def jacobian(output, input):
     n, dim = input.shape
     w = torch.ones_like(input[:,[0]])
-
     jac = torch.empty(dim,n,dim).to(output.device)
+    print(jac.shape)
     for i in range(dim):
         output_i = output[:,[i]]
         jac[i] = torch.autograd.grad(output_i, input, w, create_graph=True)[0]
@@ -48,7 +48,7 @@ def grad(outputs, inputs):
     w = torch.ones_like(outputs)
     df = torch.autograd.grad(outputs, inputs,
                         grad_outputs=w,
-                        create_graph=True)[0]
+                        create_graph=True, allow_unused=True)[0]
     return df
 
 

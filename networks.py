@@ -1,7 +1,8 @@
 from math import ceil
 import torch
 import torch.nn as nn
-from utils import jacobian
+import torch.nn.functional as F
+from utils import jacobian, grad
 
 
 class ForBlock(nn.Module):
@@ -153,3 +154,148 @@ class RegNet(nn.Module):
             else:
                 out = layer(out)
         return out
+
+
+class ActiveNet(nn.Module):
+    def __init__(self, input_dim, g_layers, g_neurons):
+        super().__init__()
+        self.input_dim = input_dim
+
+        self.g_net = nn.ModuleList()
+        self.g_net.append(nn.Linear(input_dim, g_neurons))
+        for idx in range(g_layers):
+            self.g_net.append(nn.Linear(g_neurons, g_neurons))
+        self.g_net.append(nn.Linear(g_neurons, 1))
+
+        self.pi_net = nn.ModuleList()
+        self.pi_net.append(nn.Linear(input_dim, 20))
+        self.pi_net.append(nn.Linear(20, 20))
+        self.pi_net.append(nn.Linear(20, 20))
+        self.pi_net.append(nn.Linear(20, 20))
+        self.pi_net.append(nn.Linear(20,10))
+        self.pi_net.append(nn.Linear(10,1))
+
+        self.gamma_net = nn.ModuleList()
+        self.gamma_net.append(nn.Linear(1, 10))
+        self.gamma_net.append(nn.Linear(10,20))
+        self.gamma_net.append(nn.Linear(20,input_dim))
+
+        # self.reset_parameters()   # optional parameter reset
+
+    def reset_parameters(self):
+        for name, param in self.pi_net.named_parameters():
+            if 'bias' in name:
+                nn.init.constant_(param, 0)
+            else:
+                nn.init.xavier_uniform_(param)
+
+    def g_forward(self, x):
+        ins = torch.clone(x)
+        for i, layer in enumerate(self.g_net):
+            if i != len(self.g_net) - 1:
+                x = F.relu(layer(x))
+            else: x = layer(x)
+        gPrime = grad(x, ins)
+        return x, gPrime
+
+    def pi_forward(self, x):
+        for i, layer in enumerate(self.pi_net):
+            x = F.relu(layer(x))
+        return x
+
+    def gamma_forward(self, x):
+        for i, layer in enumerate(self.gamma_net):
+            if i != len(self.gamma_net) - 1:
+                x = F.relu(layer(x))
+            else: x = layer(x)
+        return x
+
+    def forward(self, x):
+        ins = torch.clone(x)
+        ins.requires_grad_(True)
+        x = self.pi_forward(x)
+        x = self.gamma_forward(x)
+        gpgx, gPrime = self.g_forward(x)
+        gx = self.g_forward(ins)[0]
+        return gpgx, gPrime, gx
+
+
+class ActiveNet2(nn.Module):
+    def __init__(self, input_dim, g_layers, g_neurons):
+        super().__init__()
+        self.input_dim = input_dim
+
+        self.forward_net = nn.ModuleList()
+        self.inverse_net = nn.ModuleList()
+        for i in range(12):
+            self.forward_net.append(ForBlock(input_dim, 0.25))
+            self.inverse_net.append(InvBlock(input_dim, 0.25))
+
+        for i in range(12):
+            j = 12 - (i + 1)
+            for k in range(2):
+                self.inverse_net[i].layers[k].weight = (
+                    self.forward_net[j].layers[k].weight )
+                self.inverse_net[i].layers[k].bias = (
+                    self.forward_net[j].layers[k].bias )
+
+        self.g_net = nn.ModuleList()
+        self.g_net.append(nn.Linear(input_dim, g_neurons))
+        for idx in range(g_layers):
+            self.g_net.append(nn.Linear(g_neurons, g_neurons))
+        self.g_net.append(nn.Linear(g_neurons, 1))
+
+        self.gamma_net = nn.ModuleList()
+        self.gamma_net.append(nn.Linear(1, 10))
+        self.gamma_net.append(nn.Linear(10,20))
+        self.gamma_net.append(nn.Linear(20,20))
+        self.gamma_net.append(nn.Linear(20,20))
+        self.gamma_net.append(nn.Linear(20,20))
+        self.gamma_net.append(nn.Linear(20,20))
+        self.gamma_net.append(nn.Linear(20,input_dim))
+
+    def g_forward(self, x):
+        ins = torch.clone(x)
+        for i, layer in enumerate(self.g_net):
+            if i != len(self.g_net) - 1:
+                x = F.relu(layer(x))
+            else: x = layer(x)
+        gPrime = grad(x, ins)
+        return x, gPrime
+
+    def pi_forward(self, x):
+        for i, layer in enumerate(self.forward_net):
+            x = layer(x)
+        return x
+
+    def pi_backward(self, x):
+        for i, layer in enumerate(self.inverse_net):
+            x = layer(x)
+        return x
+
+    def gamma_forward(self, x):
+        for i, layer in enumerate(self.gamma_net):
+            if i != len(self.gamma_net) - 1:
+                x = F.relu(layer(x))
+            else: x = layer(x)
+        return x
+
+    def forward(self, x):
+        ins = torch.clone(x)
+        ins.requires_grad_(True)
+        x = self.pi_forward(x)
+        x = self.gamma_forward(x[:,[0]])
+        # x = self.gamma_forward(x)
+        # x = self.pi_backward(x)
+        gpgx, gPrime = self.g_forward(x)
+        gx = self.g_forward(ins)[0]
+        return gpgx, gPrime, gx
+
+    # def forward(self, x):
+    #     ins = torch.clone(x)
+    #     ins.requires_grad_(True)
+    #     x = self.pi_forward(x)
+    #     x = self.pi_backward(x)
+    #     gx, gPrime = self.g_forward(x[:,[0]])
+    #     gpgx = gx
+    #     return gpgx, gPrime, gx
